@@ -3,15 +3,18 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "serve": "vue-cli-service serve"
+    "serve": "vue-cli-service serve",
+    "build": "vue-cli-service build",
+    "deploy": "gh-pages -d dist"
   },
   "dependencies": {
     "@vue/composition-api": "^1.0.0-rc.1",
     "vue": "^2.6.14",
     "vue-template-compiler": "^2.6.14",
-    "vue2-nepali-datepicker": "file:../"
+    "vue2-nepali-datepicker": "^1.1.0"
   },
   "devDependencies": {
-    "@vue/cli-service": "^5.0.0"
+    "@vue/cli-service": "^5.0.0",
+    "gh-pages": "^6.3.0"
   }
 }
