@@ -49,120 +49,53 @@
 </template>
 
 <script>
-import { getNepaliDateData, modules } from '../utils/dataLoader'
+import { getNepaliDateData } from '../utils/dataLoader'
 
 export default {
     name: 'NepaliDatePicker',
     props: {
-        // Whether to display the English day value (day.e) in each cell.
-        showEnglishDate: {
-            type: Boolean,
-            default: true
-        },
-        // Primary color used for highlighting (passed via CSS variable).
-        primaryColor: {
-            type: String,
-            default: "#fbc02d"
-        },
-        // Accent color used for the header background.
-        accentColor: {
-            type: String,
-            default: "#ffeb3b"
-        },
-        // Default text color.
-        textColor: {
-            type: String,
-            default: "#333"
-        },
-        // Placeholder for the input field.
-        placeholder: {
-            type: String,
-            default: "Select a date"
-        },
-        // Initial date can be provided as a string in "yyyy-mm-dd" (Nepali date) or an object (old behavior).
-        initialDate: {
-            type: [Object, String],
-            default: null
-        },
-        // Optional minimum selectable date (as an object with properties: nepaliYear, nepaliMonth, day).
-        minDate: {
-            type: Object,
-            default: null
-        },
-        // Optional maximum selectable date.
-        maxDate: {
-            type: Object,
-            default: null
-        },
-        // Allows overriding of the input field's CSS styles.
-        inputStyles: {
-            type: Object,
-            default: () => ({})
-        },
-        // Determines the format of the returned value.
-        // Options: "detailed" returns the full day object, "yyyy-mm-dd" returns a formatted string,  or a custom function that takes (year, month, day) as arguments.
-        returnFormat: {
-            type: [String, Function],
-            default: 'yyyy-mm-dd'
-        },
-        // Determines the display format for the input field.
-        // If not provided, it defaults to "day.n (metadata.np)".
-        displayFormat: {
-            type: String,
-            default: ''
-        },
-        // Locale for weekday headers; "en" for English (default) or "np" for Nepali.
-        locale: {
-            type: String,
-            default: "en"
-        },
-        // Custom separator to be used in formatted date strings.
-        customSeparator: {
-            type: String,
-            default: "-"
-        },
-        // Specifies whether the emitted value is a string or an object.
-        valueType: {
-            type: String,
-            default: "string"
-        }
+        showEnglishDate: { type: Boolean, default: true },
+        primaryColor: { type: String, default: "#fbc02d" },
+        accentColor: { type: String, default: "#ffeb3b" },
+        textColor: { type: String, default: "#333" },
+        placeholder: { type: String, default: "Select a date" },
+        // Accepts either an object (legacy) or a string in "yyyy-mm-dd" (Nepali date)
+        initialDate: { type: [Object, String], default: null },
+        minDate: { type: Object, default: null },
+        maxDate: { type: Object, default: null },
+        inputStyles: { type: Object, default: () => ({}) },
+        returnFormat: { type: [String, Function], default: 'yyyy-mm-dd' },
+        displayFormat: { type: String, default: '' },
+        locale: { type: String, default: "en" },
+        customSeparator: { type: String, default: "-" },
+        valueType: { type: String, default: "string" }
     },
     data() {
         return {
-            // Controls whether the calendar popover is visible.
             calendarVisible: false,
-            // Stores the selected day object. When a day is selected, we add its Nepali year and month.
             selectedDate: null,
-            // The string that is shown in the input field.
             selectedDateDisplay: '',
-            // Holds the JSON data for the currently displayed month.
             data: null,
-            // An array of weeks (each week is an array of 7 day objects).
             weeks: [],
-            // The currently displayed Nepali year and month.
             currentYear: '',
             currentMonth: '',
-            // The actual "today" in Nepali date (computed from system date).
             currentNepaliToday: null,
-            // If initialDate is provided as a string, this holds the day portion (in Arabic numerals).
-            initialDayArabic: null
+            initialDayArabic: null,
+            computedTodayYear: '',
+            computedTodayMonth: ''
         }
     },
     computed: {
-        // Computes weekday headers based on the locale prop.
         weekDays() {
             return this.locale === 'np'
                 ? ['आइत', 'सोम', 'मंगल', 'बुध', 'बिही', 'शुक्र', 'शनि']
                 : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         },
-        // Computes the display string for the current month. If JSON metadata is available, it uses that;
-        // otherwise, it falls back to the format "currentMonth/currentYear".
         currentMonthDisplay() {
             return this.data && this.data.metadata && this.data.metadata.np
                 ? this.data.metadata.np
                 : `${this.currentMonth}/${this.currentYear}`;
         },
-        // Merges default input styles with any user-provided styles via the inputStyles prop.
         inputComputedStyle() {
             return Object.assign({ width: "200px", border: "1px solid #ccc" }, this.inputStyles);
         }
@@ -173,10 +106,7 @@ export default {
             return arabicStr.split('').map(ch => map[ch] || ch).join('');
         },
         monthNameToNumber(name) {
-            const map = {
-                Jan: 1, Feb: 2, Mar: 3, Apr: 4, May: 5, Jun: 6,
-                Jul: 7, Aug: 8, Sep: 9, Oct: 10, Nov: 11, Dec: 12
-            };
+            const map = { Jan: 1, Feb: 2, Mar: 3, Apr: 4, May: 5, Jun: 6, Jul: 7, Aug: 8, Sep: 9, Oct: 10, Nov: 11, Dec: 12 };
             return map[name] || 0;
         },
         pad(value) {
@@ -194,61 +124,31 @@ export default {
         convertDateToComparable(year, month, dayVal) {
             return Number(year) * 10000 + Number(month) * 100 + Number(dayVal);
         },
-        findCurrentNepaliDate() {
+        async computeTodayNepaliDate() {
             const today = new Date();
-            const currentYearEnglish = today.getFullYear();
-            const currentMonthEnglish = today.getMonth() + 1;
-            const currentDayEnglish = today.getDate();
-            for (const key in modules) {
-                const mod = modules[key];
-                if (!mod.metadata || !mod.metadata.en) continue;
-                const meta = mod.metadata;
-                const parts = meta.en.split(' ');
-                if (parts.length < 2) continue;
-                const monthPart = parts[0];
-                const yearStr = parts[1];
-                const metaYear = parseInt(yearStr, 10);
-                if (metaYear !== currentYearEnglish) continue;
-                const months = monthPart.split('/');
-                if (months.length !== 2) continue;
-                const firstEnglishMonth = this.monthNameToNumber(months[0]);
-                const secondEnglishMonth = this.monthNameToNumber(months[1]);
-                const daysArray = mod.days;
-                let firstSegment = [];
-                let secondSegment = [];
-                let foundReset = false;
-                for (const day of daysArray) {
-                    if (!foundReset && day.e && day.e.trim() === "01") {
-                        foundReset = true;
-                    }
-                    if (!foundReset) {
-                        firstSegment.push(day);
-                    } else {
-                        secondSegment.push(day);
-                    }
-                }
-                if (currentMonthEnglish === firstEnglishMonth) {
-                    for (const day of firstSegment) {
-                        if (day.e && parseInt(day.e, 10) === currentDayEnglish) {
-                            const segments = key.split('/');
-                            const nepaliYear = segments[0];
-                            const nepaliMonth = segments[1];
-                            return { nepaliYear, nepaliMonth, currentNepaliDay: day };
+            const currentEnglishDay = today.getDate();
+            const currentEnglishMonth = today.toLocaleString('en', { month: 'short' });
+            // Estimate Nepali year from AD (typical offset ~57)
+            const estimatedNepYear = today.getFullYear() + 57;
+            // Search in a range: estimatedNepYear-1 to estimatedNepYear+1
+            for (let yOffset = -1; yOffset <= 1; yOffset++) {
+                const nepYear = String(estimatedNepYear + yOffset);
+                for (let m = 1; m <= 12; m++) {
+                    try {
+                        const monthData = await getNepaliDateData(nepYear, String(m));
+                        if (monthData.metadata && monthData.metadata.en &&
+                            monthData.metadata.en.toLowerCase().includes(currentEnglishMonth.toLowerCase())) {
+                            const found = monthData.days.find(day => parseInt(day.e, 10) === currentEnglishDay);
+                            if (found) {
+                                return { nepaliYear: nepYear, nepaliMonth: String(m), currentNepaliDay: found };
+                            }
                         }
-                    }
-                }
-                if (currentMonthEnglish === secondEnglishMonth) {
-                    for (const day of secondSegment) {
-                        if (day.e && parseInt(day.e, 10) === currentDayEnglish) {
-                            const segments = key.split('/');
-                            const nepaliYear = segments[0];
-                            const nepaliMonth = segments[1];
-                            return { nepaliYear, nepaliMonth, currentNepaliDay: day };
-                        }
+                    } catch (e) {
+                        continue;
                     }
                 }
             }
-            return { nepaliYear: "2081", nepaliMonth: "12", currentNepaliDay: null };
+            // return { nepaliYear: "2081", nepaliMonth: "12", currentNepaliDay: null };
         },
         chunkArray(array, size) {
             const result = [];
@@ -276,7 +176,6 @@ export default {
         },
         isToday(day) {
             if (!this.currentNepaliToday) return false;
-            // Compare the module's year and month to today's computed year and month.
             if (this.currentYear !== this.computedTodayYear || this.currentMonth !== this.computedTodayMonth) {
                 return false;
             }
@@ -312,10 +211,7 @@ export default {
             return true;
         },
         selectDay(day) {
-            if (!this.isWithinRange(this.currentYear, this.currentMonth, day.e)) {
-                console.warn('Selected date is out of range.');
-                return;
-            }
+            if (!this.isWithinRange(this.currentYear, this.currentMonth, day.e)) return;
             this.selectedDate = { ...day, nepaliYear: this.currentYear, nepaliMonth: this.currentMonth };
             this.selectedDateDisplay = this.getFormattedDate(this.displayFormat, this.currentYear, this.currentMonth, day);
             this.calendarVisible = false;
@@ -337,24 +233,14 @@ export default {
         nextMonth() {
             let monthNum = parseInt(this.currentMonth);
             let yearNum = parseInt(this.currentYear);
-            if (monthNum >= 12) {
-                monthNum = 1;
-                yearNum++;
-            } else {
-                monthNum++;
-            }
+            if (monthNum >= 12) { monthNum = 1; yearNum++; } else { monthNum++; }
             this.currentMonth = monthNum.toString();
             this.currentYear = yearNum.toString();
         },
         previousMonth() {
             let monthNum = parseInt(this.currentMonth);
             let yearNum = parseInt(this.currentYear);
-            if (monthNum <= 1) {
-                monthNum = 12;
-                yearNum--;
-            } else {
-                monthNum--;
-            }
+            if (monthNum <= 1) { monthNum = 12; yearNum--; } else { monthNum--; }
             this.currentMonth = monthNum.toString();
             this.currentYear = yearNum.toString();
         },
@@ -363,8 +249,6 @@ export default {
                 .then(monthData => {
                     this.data = monthData;
                     this.weeks = this.chunkArray(monthData.days, 7);
-                    // If an initial day (string) was provided and no day is yet selected,
-                    // find the matching day in the loaded month's data.
                     if (this.initialDayArabic && !this.selectedDate) {
                         const targetNepaliDay = this.convertToNepaliNumerals(this.initialDayArabic);
                         const found = monthData.days.find(day => String(day.n).trim() === targetNepaliDay);
@@ -374,26 +258,21 @@ export default {
                         }
                     }
                 })
-                .catch(error => {
-                    console.error('Error loading data for', this.currentYear, this.currentMonth, error);
+                .catch(() => {
                     this.data = null;
                     this.weeks = [];
                 });
         }
     },
     watch: {
-        currentYear() {
-            this.loadCalendar();
-        },
-        currentMonth() {
-            this.loadCalendar();
-        }
+        currentYear() { this.loadCalendar(); },
+        currentMonth() { this.loadCalendar(); }
     },
-    mounted() {
-        const computedToday = this.findCurrentNepaliDate();
-        this.computedTodayYear = computedToday.nepaliYear;
-        this.computedTodayMonth = computedToday.nepaliMonth;
-        this.currentNepaliToday = computedToday.currentNepaliDay;
+    async mounted() {
+        const todayNepali = await this.computeTodayNepaliDate();
+        this.computedTodayYear = todayNepali.nepaliYear;
+        this.computedTodayMonth = todayNepali.nepaliMonth;
+        this.currentNepaliToday = todayNepali.currentNepaliDay;
         if (typeof this.initialDate === 'string') {
             const parts = this.initialDate.split('-');
             if (parts.length === 3) {
@@ -401,9 +280,8 @@ export default {
                 this.currentMonth = String(Number(parts[1]));
                 this.initialDayArabic = parts[2];
             } else {
-                console.warn("initialDate string is not in the expected format yyyy-mm-dd");
-                this.currentYear = computedToday.nepaliYear;
-                this.currentMonth = computedToday.nepaliMonth;
+                this.currentYear = this.computedTodayYear;
+                this.currentMonth = this.computedTodayMonth;
             }
         } else if (this.initialDate && typeof this.initialDate === 'object') {
             this.selectedDate = this.initialDate.currentNepaliDay || null;
@@ -413,13 +291,16 @@ export default {
                 this.selectedDateDisplay = this.getFormattedDate(this.displayFormat, this.initialDate.nepaliYear, this.initialDate.nepaliMonth, this.selectedDate);
             }
         } else {
-            this.currentYear = computedToday.nepaliYear;
-            this.currentMonth = computedToday.nepaliMonth;
+            this.currentYear = this.computedTodayYear;
+            this.currentMonth = this.computedTodayMonth;
         }
         this.loadCalendar();
     }
 };
 </script>
+
+
+
 
 <style scoped>
 .date-picker {
