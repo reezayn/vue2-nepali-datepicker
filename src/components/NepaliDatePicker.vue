@@ -59,7 +59,6 @@ export default {
         accentColor: { type: String, default: "#ffeb3b" },
         textColor: { type: String, default: "#333" },
         placeholder: { type: String, default: "Select a date" },
-        // Accepts either an object (legacy) or a string in "yyyy-mm-dd" (Nepali date)
         initialDate: { type: [Object, String], default: null },
         minDate: { type: Object, default: null },
         maxDate: { type: Object, default: null },
@@ -103,11 +102,15 @@ export default {
     methods: {
         convertToNepaliNumerals(arabicStr) {
             const map = { '0': '०', '1': '१', '2': '२', '3': '३', '4': '४', '5': '५', '6': '६', '7': '७', '8': '८', '9': '९' };
-            return arabicStr.split('').map(ch => map[ch] || ch).join('');
+            return arabicStr.split('').map(ch => map[ch]).join('');
+        },
+        convertNepaliToArabic(nepaliStr) {
+            const map = { '०': '0', '१': '1', '२': '2', '३': '3', '४': '4', '५': '5', '६': '6', '७': '7', '८': '8', '९': '9' };
+            return nepaliStr.split('').map(ch => map[ch] || ch).join('');
         },
         monthNameToNumber(name) {
             const map = { Jan: 1, Feb: 2, Mar: 3, Apr: 4, May: 5, Jun: 6, Jul: 7, Aug: 8, Sep: 9, Oct: 10, Nov: 11, Dec: 12 };
-            return map[name] || 0;
+            return map[name];
         },
         pad(value) {
             const str = String(value);
@@ -117,7 +120,7 @@ export default {
             return format
                 .replace(/yyyy/g, year)
                 .replace(/mm/g, this.pad(month))
-                .replace(/dd/g, this.pad(day.e))
+                .replace(/dd/g, this.convertNepaliToArabic(this.pad(day.n)))
                 .replace(/nn/g, day.n)
                 .replace(/{sep}/g, customSeparator);
         },
@@ -126,17 +129,18 @@ export default {
         },
         async computeTodayNepaliDate() {
             const today = new Date();
+            const currentEnglishYear = today.getFullYear();
             const currentEnglishDay = today.getDate();
             const currentEnglishMonth = today.toLocaleString('en', { month: 'short' });
             // Estimate Nepali year from AD (typical offset ~57)
             const estimatedNepYear = today.getFullYear() + 57;
-            // Search in a range: estimatedNepYear-1 to estimatedNepYear+1
-            for (let yOffset = -1; yOffset <= 1; yOffset++) {
+            // Search in a range: estimatedNepYear-2 to estimatedNepYear+2
+            for (let yOffset = -2; yOffset <= 2; yOffset++) {
                 const nepYear = String(estimatedNepYear + yOffset);
                 for (let m = 1; m <= 12; m++) {
                     try {
                         const monthData = await getNepaliDateData(nepYear, String(m));
-                        if (monthData.metadata && monthData.metadata.en &&
+                        if (monthData.metadata && monthData.metadata.en && monthData.metadata.en.includes(currentEnglishYear) &&
                             monthData.metadata.en.toLowerCase().includes(currentEnglishMonth.toLowerCase())) {
                             const found = monthData.days.find(day => parseInt(day.e, 10) === currentEnglishDay);
                             if (found) {
@@ -221,7 +225,7 @@ export default {
             } else if (this.returnFormat === 'detailed' || this.valueType === 'object') {
                 formattedReturn = day;
             } else if (this.returnFormat === 'yyyy-mm-dd') {
-                formattedReturn = `${this.currentYear}${this.customSeparator}${this.pad(this.currentMonth)}${this.customSeparator}${this.pad(day.e)}`;
+                formattedReturn = `${this.currentYear}${this.customSeparator}${this.pad(this.currentMonth)}${this.customSeparator}${this.convertNepaliToArabic(this.pad(day.n))}`;
             } else {
                 formattedReturn = day;
             }
@@ -262,6 +266,11 @@ export default {
                     this.data = null;
                     this.weeks = [];
                 });
+        },
+        handleClickOutside(event) {
+            if (!this.$el.contains(event.target)) {
+                this.calendarVisible = false;
+            }
         }
     },
     watch: {
@@ -269,6 +278,8 @@ export default {
         currentMonth() { this.loadCalendar(); }
     },
     async mounted() {
+        document.addEventListener('click', this.handleClickOutside);
+
         const todayNepali = await this.computeTodayNepaliDate();
         this.computedTodayYear = todayNepali.nepaliYear;
         this.computedTodayMonth = todayNepali.nepaliMonth;
@@ -295,7 +306,10 @@ export default {
             this.currentMonth = this.computedTodayMonth;
         }
         this.loadCalendar();
-    }
+    },
+    beforeDestroy() {
+        document.removeEventListener('click', this.handleClickOutside);
+    },
 };
 </script>
 
