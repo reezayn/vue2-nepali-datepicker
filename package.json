@@ -1,6 +1,6 @@
 {
   "name": "vue2-nepali-datepicker",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "main": "dist/vue2-nepali-datepicker.umd.js",
   "module": "dist/vue2-nepali-datepicker.es.js",
   "files": [
